@@ -54,4 +54,44 @@ router.post('/create-admin', async (req, res) => {
   }
 });
 
+// Reset admin password endpoint
+router.post('/reset-admin-password', async (req, res) => {
+  try {
+    // Find admin user
+    const adminUser = await User.findOne({ email: 'admin@northheaddigital.com' });
+    
+    if (!adminUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin user not found'
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash('password123', saltRounds);
+
+    // Update password
+    adminUser.password = hashedPassword;
+    await adminUser.save();
+
+    res.json({
+      success: true,
+      message: 'Admin password reset successfully',
+      user: {
+        email: adminUser.email,
+        role: adminUser.role
+      }
+    });
+
+  } catch (error) {
+    console.error('Error resetting admin password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting admin password',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
