@@ -129,4 +129,43 @@ router.get('/debug-admin', async (req, res) => {
   }
 });
 
+// Delete and recreate admin user with correct password
+router.post('/fix-admin', async (req, res) => {
+  try {
+    // Delete existing admin user
+    await User.deleteOne({ email: 'admin@northheaddigital.com' });
+    console.log('Deleted existing admin user');
+
+    // Create new admin user using the User model (which will hash password correctly)
+    const adminUser = new User({
+      name: 'Admin User',
+      email: 'admin@northheaddigital.com',
+      password: 'password123', // This will be hashed by the pre-save middleware
+      company: 'North Head Digital',
+      role: 'admin'
+    });
+
+    await adminUser.save();
+    console.log('Created new admin user');
+
+    res.json({
+      success: true,
+      message: 'Admin user recreated successfully',
+      user: {
+        email: adminUser.email,
+        role: adminUser.role,
+        name: adminUser.name
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fixing admin user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fixing admin user',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
