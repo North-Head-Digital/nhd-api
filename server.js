@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -42,14 +43,21 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Database connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://ADMIN:Password123@nhd-portal.6o9g1b7.mongodb.net/nhd-portal?retryWrites=true&w=majority';
+// Database connection - CRITICAL: No hardcoded fallbacks for security
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('❌ CRITICAL: MONGODB_URI environment variable is required');
+  console.error('💡 Please set MONGODB_URI in your environment variables');
+  process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI)
 .then(() => console.log('✅ Connected to MongoDB Atlas'))
 .catch(err => {
   console.error('❌ MongoDB connection error:', err.message);
-  console.log('💡 Make sure your MongoDB Atlas connection string is correct');
+  console.error('💡 Check your MongoDB Atlas connection string and network access');
+  process.exit(1);
 });
 
 // Routes
@@ -68,18 +76,18 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
-  });
-});
+// Error handling middleware (must be last)
+app.use(errorHandler);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+    type: 'NOT_FOUND',
+    timestamp: new Date().toISOString(),
+    path: req.originalUrl
+  });
 });
 
 app.listen(PORT, () => {

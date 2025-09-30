@@ -2,8 +2,15 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const { sendSuccess, sendError, sendValidationError, sendUnauthorized } = require('../utils/responseHelper');
 
 const router = express.Router();
+
+// CRITICAL: Validate JWT_SECRET on startup
+if (!process.env.JWT_SECRET) {
+  console.error('❌ CRITICAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 
 // Register new user
 router.post('/register', async (req, res) => {
@@ -12,16 +19,13 @@ router.post('/register', async (req, res) => {
 
     // Validation
     if (!name || !email || !password || !company) {
-      return res.status(400).json({ 
-        error: 'All fields are required',
-        fields: { name, email, password, company }
-      });
+      return sendValidationError(res, 'All fields are required');
     }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists with this email' });
+      return sendError(res, 'User already exists with this email', 400, 'DUPLICATE_EMAIL');
     }
 
     // Create new user
@@ -37,12 +41,11 @@ router.post('/register', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.status(201).json({
-      message: 'User created successfully',
+    sendSuccess(res, {
       token,
       user: {
         id: user._id,
@@ -51,14 +54,11 @@ router.post('/register', async (req, res) => {
         company: user.company,
         role: user.role
       }
-    });
+    }, 'User registered successfully', 201);
 
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ 
-      error: 'Registration failed',
-      message: error.message 
-    });
+    sendError(res, 'Registration failed', 500, 'INTERNAL_ERROR', error);
   }
 });
 
@@ -69,24 +69,24 @@ router.post('/login', async (req, res) => {
 
     // Validation
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return sendValidationError(res, 'Email and password are required');
     }
 
     // Find user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return sendUnauthorized(res, 'Invalid credentials');
     }
 
     // Check if user is active
     if (!user.isActive) {
-      return res.status(401).json({ error: 'Account is deactivated' });
+      return sendUnauthorized(res, 'Account is deactivated');
     }
 
     // Verify password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return sendUnauthorized(res, 'Invalid credentials');
     }
 
     // Update last login
@@ -96,7 +96,7 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
