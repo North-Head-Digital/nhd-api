@@ -94,4 +94,33 @@ router.post('/reset-admin-password', async (req, res) => {
   }
 });
 
+// Debug endpoint to check user data
+router.get('/debug-admin', async (req, res) => {
+  try {
+    const adminUser = await User.findOne({ email: 'admin@northheaddigital.com' });
+    
+    if (!adminUser) {
+      return res.json({ success: false, message: 'Admin user not found' });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        email: adminUser.email,
+        role: adminUser.role,
+        name: adminUser.name,
+        company: adminUser.company,
+        passwordLength: adminUser.password.length,
+        passwordStartsWith: adminUser.password.substring(0, 10)
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
