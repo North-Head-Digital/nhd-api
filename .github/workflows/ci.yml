@@ -73,6 +73,18 @@ jobs:
       continue-on-error: true
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        
+    - name: Check for known vulnerabilities
+      run: |
+        echo "Checking for known vulnerabilities..."
+        npm audit --audit-level high --production
+        if [ $? -ne 0 ]; then
+          echo "❌ High or critical vulnerabilities found!"
+          echo "Please update dependencies or address security issues"
+          exit 1
+        else
+          echo "✅ No high or critical vulnerabilities found"
+        fi
 
   deploy:
     name: Deploy to Railway
