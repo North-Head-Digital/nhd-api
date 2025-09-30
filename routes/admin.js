@@ -97,11 +97,15 @@ router.post('/reset-admin-password', async (req, res) => {
 // Debug endpoint to check user data
 router.get('/debug-admin', async (req, res) => {
   try {
-    const adminUser = await User.findOne({ email: 'admin@northheaddigital.com' });
+    const adminUser = await User.findOne({ email: 'admin@northheaddigital.com' }).select('+password');
     
     if (!adminUser) {
       return res.json({ success: false, message: 'Admin user not found' });
     }
+
+    // Test password comparison
+    const bcrypt = require('bcryptjs');
+    const passwordTest = await bcrypt.compare('password123', adminUser.password);
 
     res.json({
       success: true,
@@ -110,8 +114,10 @@ router.get('/debug-admin', async (req, res) => {
         role: adminUser.role,
         name: adminUser.name,
         company: adminUser.company,
+        isActive: adminUser.isActive,
         passwordLength: adminUser.password.length,
-        passwordStartsWith: adminUser.password.substring(0, 10)
+        passwordStartsWith: adminUser.password.substring(0, 10),
+        passwordTest: passwordTest
       }
     });
 
