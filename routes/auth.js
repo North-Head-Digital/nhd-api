@@ -45,7 +45,9 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    sendSuccess(res, {
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
       token,
       user: {
         id: user._id,
@@ -53,8 +55,9 @@ router.post('/register', async (req, res) => {
         email: user.email,
         company: user.company,
         role: user.role
-      }
-    }, 'User registered successfully', 201);
+      },
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Registration error:', error);
@@ -69,24 +72,44 @@ router.post('/login', async (req, res) => {
 
     // Validation
     if (!email || !password) {
-      return sendValidationError(res, 'Email and password are required');
+      return res.status(400).json({
+        success: false,
+        error: 'Email and password are required',
+        type: 'VALIDATION_ERROR',
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Find user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return sendUnauthorized(res, 'Invalid credentials');
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+        type: 'INVALID_CREDENTIALS',
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Check if user is active
     if (!user.isActive) {
-      return sendUnauthorized(res, 'Account is deactivated');
+      return res.status(401).json({
+        success: false,
+        error: 'Account is deactivated',
+        type: 'ACCOUNT_DEACTIVATED',
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Verify password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      return sendUnauthorized(res, 'Invalid credentials');
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+        type: 'INVALID_CREDENTIALS',
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Update last login
@@ -101,6 +124,7 @@ router.post('/login', async (req, res) => {
     );
 
     res.json({
+      success: true,
       message: 'Login successful',
       token,
       user: {
@@ -110,7 +134,8 @@ router.post('/login', async (req, res) => {
         company: user.company,
         role: user.role,
         lastLogin: user.lastLogin
-      }
+      },
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
@@ -127,10 +152,14 @@ router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return sendError(res, 'User not found', 404, 'USER_NOT_FOUND');
     }
 
-    res.json({
+    if (!user.isActive) {
+      return sendUnauthorized(res, 'Account is deactivated');
+    }
+
+    sendSuccess(res, {
       user: {
         id: user._id,
         name: user.name,
@@ -141,14 +170,11 @@ router.get('/me', auth, async (req, res) => {
         lastLogin: user.lastLogin,
         createdAt: user.createdAt
       }
-    });
+    }, 'Profile retrieved successfully');
 
   } catch (error) {
     console.error('Profile error:', error);
-    res.status(500).json({ 
-      error: 'Failed to get profile',
-      message: error.message 
-    });
+    sendError(res, 'Failed to get profile', 500, 'INTERNAL_ERROR', error);
   }
 });
 
@@ -157,12 +183,45 @@ router.post('/logout', auth, (req, res) => {
   res.json({ message: 'Logout successful' });
 });
 
-// Verify token
-router.get('/verify', auth, (req, res) => {
-  res.json({ 
-    valid: true, 
-    user: req.user 
-  });
+// Verify token and return user data (POST to match test expectations)
+router.post('/verify', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        valid: false,
+        error: 'Invalid or inactive user',
+        type: 'INVALID_USER',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        company: user.company,
+        role: user.role,
+        avatar: user.avatar,
+        lastLogin: user.lastLogin
+      },
+      message: 'Token verified successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(401).json({
+      success: false,
+      valid: false,
+      error: 'Token verification failed',
+      type: 'VERIFICATION_ERROR',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 module.exports = router;

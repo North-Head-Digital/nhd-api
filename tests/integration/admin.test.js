@@ -45,45 +45,49 @@ describe('Admin Routes', () => {
         company: 'Admin Company'
       };
 
-      // Create first admin
-      await global.testUtils.createTestAdmin({ email: adminData.email });
+      // Create first admin with different email to avoid conflict with beforeEach
+      await global.testUtils.createTestUser({ 
+        email: adminData.email,
+        role: 'admin' 
+      });
 
       const response = await request(app)
         .post('/api/admin/create-admin')
         .send(adminData)
-        .expect(200);
+        .expect(409);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.message).toBe('Admin user already exists');
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toBe('Admin user already exists with this email');
     });
 
     it('should validate required fields', async () => {
       const response = await request(app)
         .post('/api/admin/create-admin')
         .send({})
-        .expect(500);
+        .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Error creating admin user');
+      expect(response.body.message).toBe('All fields are required');
     });
   });
 
   describe('POST /api/admin/reset-admin-password', () => {
     it('should reset admin password successfully', async () => {
+      // Admin user already created in beforeEach
       const response = await request(app)
         .post('/api/admin/reset-admin-password')
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Admin password reset successfully');
-      expect(response.body.user.email).toBe('admin@northheaddigital.com');
+      expect(response.body.user.email).toBe('admin@test.com');
       expect(response.body.user.role).toBe('admin');
     });
 
     it('should handle case when admin user does not exist', async () => {
       // Delete admin user
       const User = require('../../models/User');
-      await User.deleteOne({ email: 'admin@northheaddigital.com' });
+      await User.deleteOne({ email: 'admin@test.com' });
 
       const response = await request(app)
         .post('/api/admin/reset-admin-password')
@@ -96,12 +100,13 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/debug-admin', () => {
     it('should return admin user debug information', async () => {
+      // Admin user already created in beforeEach
       const response = await request(app)
         .get('/api/admin/debug-admin')
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.user.email).toBe('admin@northheaddigital.com');
+      expect(response.body.user.email).toBe('admin@test.com');
       expect(response.body.user.role).toBe('admin');
       expect(response.body.user.passwordTest).toBe(true);
     });
@@ -109,11 +114,11 @@ describe('Admin Routes', () => {
     it('should handle case when admin user does not exist', async () => {
       // Delete admin user
       const User = require('../../models/User');
-      await User.deleteOne({ email: 'admin@northheaddigital.com' });
+      await User.deleteOne({ email: 'admin@test.com' });
 
       const response = await request(app)
         .get('/api/admin/debug-admin')
-        .expect(200);
+        .expect(404);
 
       expect(response.body.success).toBe(false);
       expect(response.body.message).toBe('Admin user not found');
@@ -128,13 +133,12 @@ describe('Admin Routes', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Admin user recreated successfully');
-      expect(response.body.user.email).toBe('admin@northheaddigital.com');
+      expect(response.body.user.email).toBe('admin@test.com');
       expect(response.body.user.role).toBe('admin');
     });
 
     it('should delete existing admin before recreating', async () => {
-      // Create an admin user first
-      await global.testUtils.createTestAdmin();
+      // Admin user already created in beforeEach
 
       const response = await request(app)
         .post('/api/admin/fix-admin')
@@ -145,7 +149,7 @@ describe('Admin Routes', () => {
 
       // Verify only one admin exists
       const User = require('../../models/User');
-      const adminCount = await User.countDocuments({ email: 'admin@northheaddigital.com' });
+      const adminCount = await User.countDocuments({ email: 'admin@test.com' });
       expect(adminCount).toBe(1);
     });
   });

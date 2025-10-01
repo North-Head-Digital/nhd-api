@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const errorHandler = require('./middleware/errorHandler');
+const { authLimiter, apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,6 +17,9 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(helmet());
 app.use(morgan('combined'));
+
+// Apply API rate limiter to all routes
+app.use('/api/', apiLimiter);
 
 // CORS configuration - allow multiple origins for development
 const allowedOrigins = [
@@ -61,7 +65,7 @@ mongoose.connect(MONGODB_URI)
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes); // Apply strict rate limiting to auth routes
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/projects', require('./routes/projects'));
@@ -80,7 +84,7 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 // 404 handler for undefined routes
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: 'Route not found',

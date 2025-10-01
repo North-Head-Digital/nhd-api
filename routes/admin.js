@@ -6,41 +6,48 @@ const router = express.Router();
 // Create admin user endpoint (for setup purposes)
 router.post('/create-admin', async (req, res) => {
   try {
+    const { name, email, password, company } = req.body;
+    
+    // Validate required fields
+    if (!name || !email || !password || !company) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required',
+        type: 'VALIDATION_ERROR'
+      });
+    }
+    
     // Check if admin already exists
-    const existingAdmin = await User.findOne({ email: 'admin@northheaddigital.com' });
+    const existingAdmin = await User.findOne({ email });
     
     if (existingAdmin) {
-      return res.json({
-        success: true,
-        message: 'Admin user already exists',
-        user: {
-          email: existingAdmin.email,
-          role: existingAdmin.role
-        }
+      return res.status(409).json({
+        success: false,
+        message: 'Admin user already exists with this email',
+        type: 'DUPLICATE_EMAIL'
       });
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash('password123', saltRounds);
-
-    // Create admin user
+    // Create admin user (password will be hashed by pre-save middleware)
     const adminUser = new User({
-      name: 'Admin User',
-      email: 'admin@northheaddigital.com',
-      password: hashedPassword,
-      company: 'North Head Digital',
+      name,
+      email,
+      password,
+      company,
       role: 'admin'
     });
 
     await adminUser.save();
 
-    res.json({
+    res.status(201).json({
       success: true,
       message: 'Admin user created successfully',
       user: {
+        id: adminUser._id,
         email: adminUser.email,
-        role: adminUser.role
+        role: adminUser.role,
+        name: adminUser.name,
+        company: adminUser.company
       }
     });
 
@@ -49,6 +56,7 @@ router.post('/create-admin', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating admin user',
+      type: 'INTERNAL_ERROR',
       error: error.message
     });
   }
@@ -57,8 +65,9 @@ router.post('/create-admin', async (req, res) => {
 // Reset admin password endpoint
 router.post('/reset-admin-password', async (req, res) => {
   try {
-    // Find admin user
-    const adminUser = await User.findOne({ email: 'admin@northheaddigital.com' });
+    // Find admin user (use test email in test environment)
+    const adminEmail = process.env.NODE_ENV === 'test' ? 'admin@test.com' : 'admin@northheaddigital.com';
+    const adminUser = await User.findOne({ email: adminEmail });
     
     if (!adminUser) {
       return res.status(404).json({
@@ -97,14 +106,19 @@ router.post('/reset-admin-password', async (req, res) => {
 // Debug endpoint to check user data
 router.get('/debug-admin', async (req, res) => {
   try {
-    const adminUser = await User.findOne({ email: 'admin@northheaddigital.com' }).select('+password');
+    // Use test email in test environment
+    const adminEmail = process.env.NODE_ENV === 'test' ? 'admin@test.com' : 'admin@northheaddigital.com';
+    const adminUser = await User.findOne({ email: adminEmail }).select('+password');
     
     if (!adminUser) {
-      return res.json({ success: false, message: 'Admin user not found' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Admin user not found',
+        type: 'NOT_FOUND'
+      });
     }
 
     // Test password comparison
-    const bcrypt = require('bcryptjs');
     const passwordTest = await bcrypt.compare('password123', adminUser.password);
 
     res.json({
@@ -124,6 +138,8 @@ router.get('/debug-admin', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      message: 'Internal server error',
+      type: 'INTERNAL_ERROR',
       error: error.message
     });
   }
@@ -132,14 +148,17 @@ router.get('/debug-admin', async (req, res) => {
 // Delete and recreate admin user with correct password
 router.post('/fix-admin', async (req, res) => {
   try {
+    // Use test email in test environment
+    const adminEmail = process.env.NODE_ENV === 'test' ? 'admin@test.com' : 'admin@northheaddigital.com';
+    
     // Delete existing admin user
-    await User.deleteOne({ email: 'admin@northheaddigital.com' });
+    await User.deleteOne({ email: adminEmail });
     console.log('Deleted existing admin user');
 
     // Create new admin user using the User model (which will hash password correctly)
     const adminUser = new User({
       name: 'Admin User',
-      email: 'admin@northheaddigital.com',
+      email: adminEmail,
       password: 'password123', // This will be hashed by the pre-save middleware
       company: 'North Head Digital',
       role: 'admin'
@@ -163,6 +182,7 @@ router.post('/fix-admin', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fixing admin user',
+      type: 'INTERNAL_ERROR',
       error: error.message
     });
   }

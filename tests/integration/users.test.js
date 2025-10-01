@@ -112,10 +112,10 @@ describe('User Routes', () => {
         .put('/api/users/profile')
         .set('Authorization', `Bearer ${clientToken}`)
         .send(updateData)
-        .expect(200);
+        .expect(400);
 
-      // Email should remain unchanged
-      expect(response.body.user.email).toBe(clientUser.email);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Email cannot be updated through this endpoint');
     });
 
     it('should not allow updating role', async () => {
@@ -127,10 +127,10 @@ describe('User Routes', () => {
         .put('/api/users/profile')
         .set('Authorization', `Bearer ${clientToken}`)
         .send(updateData)
-        .expect(200);
+        .expect(400);
 
-      // Role should remain unchanged
-      expect(response.body.user.role).toBe('client');
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Role cannot be updated through this endpoint');
     });
 
     it('should return 401 without token', async () => {
